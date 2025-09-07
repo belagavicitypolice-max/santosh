@@ -1,40 +1,1654 @@
-function doPost(e) {
-  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-  var action = e.parameter.action;
-  
-  if (action === 'addRecord') {
-    var id = e.parameter.id;
-    var rank = e.parameter.rank;
-    var name = e.parameter.name;
-    var policeStation = e.parameter.policeStation;
-    var sector = e.parameter.sector;
-    var shift = e.parameter.shift;
-    var timestamp = e.parameter.timestamp;
-    var lat = e.parameter.lat;
-    var lng = e.parameter.lng;
-    var photo = e.parameter.photo;
-    
-    sheet.appendRow([id, rank, name, policeStation, sector, shift, timestamp, lat, lng, photo]);
-    
-    return ContentService.createTextOutput(JSON.stringify({success: true})).setMimeType(ContentService.MimeType.JSON);
-  }
-  
-  return ContentService.createTextOutput(JSON.stringify({success: false, error: 'Unknown action'})).setMimeType(ContentService.MimeType.JSON);
-}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Digital Attendance System</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        :root {
+            --primary-color: #d32f2f;
+            --primary-dark: #b71c1c;
+            --primary-light: #ef5350;
+            --secondary-color: #f5f5f5;
+            --text-dark: #333;
+            --text-light: #fff;
+            --success-color: #4caf50;
+            --warning-color: #ff9800;
+            --border-radius: 8px;
+            --box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background-color: #f9f9f9;
+            color: var(--text-dark);
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        header {
+            background-color: var(--primary-color);
+            color: var(--text-light);
+            padding: 15px 0;
+            box-shadow: var(--box-shadow);
+        }
+        
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .logo {
+            display: flex;
+            align-items: center;
+        }
+        
+        .logo img {
+            height: 50px;
+            margin-right: 15px;
+        }
+        
+        .logo h1 {
+            font-size: 24px;
+            font-weight: 600;
+        }
+        
+        .nav-buttons button {
+            background-color: var(--primary-dark);
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: var(--border-radius);
+            cursor: pointer;
+            margin-left: 10px;
+            transition: background-color 0.3s;
+        }
+        
+        .nav-buttons button:hover {
+            background-color: var(--primary-light);
+        }
+        
+        .card {
+            background: white;
+            border-radius: var(--border-radius);
+            box-shadow: var(--box-shadow);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .card-title {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: var(--primary-dark);
+            border-bottom: 2px solid var(--primary-light);
+            padding-bottom: 10px;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+        
+        .form-control {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: var(--border-radius);
+            font-size: 16px;
+        }
+        
+        .btn {
+            padding: 12px 20px;
+            border: none;
+            border-radius: var(--border-radius);
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+        
+        .btn-primary {
+            background-color: var(--primary-color);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background-color: var(--primary-dark);
+        }
+        
+        .btn-secondary {
+            background-color: #757575;
+            color: white;
+        }
+        
+        .btn-secondary:hover {
+            background-color: #616161;
+        }
+        
+        .camera-container {
+            width: 100%;
+            height: 300px;
+            background-color: #eee;
+            border-radius: var(--border-radius);
+            overflow: hidden;
+            margin-bottom: 15px;
+            position: relative;
+        }
+        
+        #videoElement {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        #captureBtn {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: var(--primary-color);
+            color: white;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+        
+        .map-container {
+            height: 300px;
+            border-radius: var(--border-radius);
+            overflow: hidden;
+            margin-bottom: 15px;
+        }
+        
+        .success-dialog {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            display: none;
+        }
+        
+        .dialog-content {
+            background-color: white;
+            padding: 30px;
+            border-radius: var(--border-radius);
+            text-align: center;
+            max-width: 400px;
+            width: 100%;
+        }
+        
+        .dialog-content i {
+            font-size: 48px;
+            color: var(--success-color);
+            margin-bottom: 15px;
+        }
+        
+        .dialog-content h2 {
+            margin-bottom: 15px;
+            color: var(--success-color);
+        }
+        
+        .login-container {
+            max-width: 400px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        
+        table, th, td {
+            border: 1px solid #ddd;
+        }
+        
+        th, td {
+            padding: 12px;
+            text-align: left;
+        }
+        
+        th {
+            background-color: var(--primary-color);
+            color: white;
+        }
+        
+        tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+        
+        .filters {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .filter-item {
+            flex: 1;
+            min-width: 200px;
+        }
+        
+        .admin-section {
+            display: none;
+        }
+        
+        .user-section {
+            display: none;
+        }
+        
+        .active-section {
+            display: block;
+        }
+        
+        .analytics-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .analytics-card {
+            background: white;
+            border-radius: var(--border-radius);
+            box-shadow: var(--box-shadow);
+            padding: 20px;
+            text-align: center;
+        }
+        
+        .analytics-card h3 {
+            font-size: 16px;
+            margin-bottom: 10px;
+            color: var(--primary-dark);
+        }
+        
+        .analytics-card .value {
+            font-size: 24px;
+            font-weight: bold;
+            color: var(--primary-color);
+        }
+        
+        .tab-navigation {
+            display: flex;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        .tab-button {
+            padding: 10px 20px;
+            background: #eee;
+            border: none;
+            cursor: pointer;
+            margin-right: 5px;
+            border-top-left-radius: var(--border-radius);
+            border-top-right-radius: var(--border-radius);
+        }
+        
+        .tab-button.active {
+            background: var(--primary-color);
+            color: white;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .search-box {
+            margin-bottom: 20px;
+        }
+        
+        .captured-photo {
+            width: 100%;
+            max-width: 300px;
+            margin-top: 15px;
+            border-radius: var(--border-radius);
+            display: none;
+        }
+        
+        .location-info {
+            background-color: #f5f5f5;
+            padding: 10px;
+            border-radius: var(--border-radius);
+            margin-top: 10px;
+            display: none;
+        }
+        
+        .path-tracker {
+            height: 400px;
+            margin-top: 20px;
+        }
+        
+        .attendance-list {
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s ease-in-out infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px;
+            border-radius: var(--border-radius);
+            color: white;
+            z-index: 1000;
+            display: none;
+        }
+        
+        .notification.success {
+            background-color: var(--success-color);
+        }
+        
+        .notification.error {
+            background-color: var(--primary-color);
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container header-content">
+            <div class="logo">
+                <img id="logoImage" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjUwIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjx0ZXh0IHg9IjEwIiB5PSIzMCIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjI0IiBmaWxsPSJ3aGl0ZSI+QXR0ZW5kYW5jZSBTeXN0ZW08L3RleHQ+PC9zdmc+" alt="Logo">
+                <h1>Digital Attendance System</h1>
+            </div>
+            <div class="nav-buttons">
+                <button id="userPageBtn">User Page</button>
+                <button id="adminPageBtn">Admin Login</button>
+                <button id="logoutBtn" style="display: none;">Logout</button>
+            </div>
+        </div>
+    </header>
 
-function doGet(e) {
-  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-  var data = sheet.getDataRange().getValues();
-  var headers = data[0];
-  var jsonData = [];
-  
-  for (var i = 1; i < data.length; i++) {
-    var row = {};
-    for (var j = 0; j < headers.length; j++) {
-      row[headers[j]] = data[i][j];
-    }
-    jsonData.push(row);
-  }
-  
-  return ContentService.createTextOutput(JSON.stringify(jsonData)).setMimeType(ContentService.MimeType.JSON);
-}
+    <div class="container">
+        <!-- User Attendance Section -->
+        <section id="userSection" class="user-section active-section">
+            <div class="card">
+                <h2 class="card-title">Digital Attendance Form</h2>
+                <form id="attendanceForm">
+                    <div class="form-group">
+                        <label for="id">ID</label>
+                        <input type="text" id="id" class="form-control" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="rank">Rank</label>
+                        <select id="rank" class="form-control" required>
+                            <option value="">Select Rank</option>
+                            <option value="HG">HG</option>
+                            <option value="PC">PC</option>
+                            <option value="HC">HC</option>
+                            <option value="ASI">ASI</option>
+                            <option value="PSI">PSI</option>
+                            <option value="PI/CPI">PI/CPI</option>
+                            <option value="ACP/DSP">ACP/DSP</option>
+                            <option value="SP/DCP">SP/DCP</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="name">Name</label>
+                        <input type="text" id="name" class="form-control" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="policeStation">Police Station</label>
+                        <select id="policeStation" class="form-control" required>
+                            <option value="">Select Police Station</option>
+                            <option value="APMC Police Station">APMC Police Station</option>
+                            <option value="Malamaruti Police Station">Malamaruti Police Station</option>
+                            <option value="Market Police Station">Market Police Station</option>
+                            <option value="Shahapur Police Station">Shahapur Police Station</option>
+                            <option value="Kadebazar Police Station">Kadebazar Police Station</option>
+                            <option value="Camp Police Station">Camp Police Station</option>
+                            <option value="Tilakawadi Police Station">Tilakawadi Police Station</option>
+                            <option value="Udyambag Police Station">Udyambag Police Station</option>
+                            <option value="Rural Police Station">Rural Police Station</option>
+                            <option value="Kakati Police Station">Kakati Police Station</option>
+                            <option value="Marihal Police Station">Marihal Police Station</option>
+                            <option value="Bagewadi Police Station">Bagewadi Police Station</option>
+                            <option value="Traffic North Police Station">Traffic North Police Station</option>
+                            <option value="Traffic South Police Station">Traffic South Police Station</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="sector">Sector</label>
+                        <select id="sector" class="form-control" required>
+                            <option value="">Select Sector</option>
+                            <option value="1">1</option>
+                            <option value="2">2</option>
+                            <option value="3">3</option>
+                            <option value="Others">Others</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="shift">Shift</label>
+                        <select id="shift" class="form-control" required>
+                            <option value="">Select Shift</option>
+                            <option value="1">1</option>
+                            <option value="2">2</option>
+                            <option value="3">3</option>
+                            <option value="Others">Others</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Photo Capture</label>
+                        <div class="camera-container">
+                            <video id="videoElement" autoplay></video>
+                            <button type="button" id="captureBtn"><i class="fas fa-camera"></i></button>
+                        </div>
+                        <canvas id="canvas" style="display:none;"></canvas>
+                        <img id="capturedPhoto" class="captured-photo" alt="Captured Photo">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Location</label>
+                        <button type="button" id="getLocationBtn" class="btn btn-secondary">Capture Location</button>
+                        <div id="locationData" class="location-info"></div>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary">Submit Attendance</button>
+                </form>
+            </div>
+        </section>
+
+        <!-- Admin Login Section -->
+        <section id="loginSection" class="admin-section">
+            <div class="card login-container">
+                <h2 class="card-title">Admin Login</h2>
+                <form id="loginForm">
+                    <div class="form-group">
+                        <label for="username">Username</label>
+                        <input type="text" id="username" class="form-control" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="password">Password</label>
+                        <input type="password" id="password" class="form-control" required>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary">Login</button>
+                </form>
+            </div>
+        </section>
+
+        <!-- Admin Dashboard Section -->
+        <section id="adminSection" class="admin-section">
+            <h2 class="card-title">Admin Dashboard</h2>
+            
+            <div class="tab-navigation">
+                <button class="tab-button active" data-tab="attendanceData">Attendance Data</button>
+                <button class="tab-button" data-tab="addRecord">Add Record</button>
+                <button class="tab-button" data-tab="tracker">Attendance Tracker</button>
+                <button class="tab-button" data-tab="analytics">Analytics</button>
+                <button class="tab-button" data-tab="settings">Settings</button>
+            </div>
+            
+            <div class="tab-content active" id="attendanceData">
+                <div class="card">
+                    <h3 class="card-title">Filters</h3>
+                    <div class="filters">
+                        <div class="filter-item">
+                            <label for="filterDate">Date</label>
+                            <input type="date" id="filterDate" class="form-control">
+                        </div>
+                        <div class="filter-item">
+                            <label for="filterPoliceStation">Police Station</label>
+                            <select id="filterPoliceStation" class="form-control">
+                                <option value="">All</option>
+                                <option value="APMC Police Station">APMC Police Station</option>
+                                <option value="Malamaruti Police Station">Malamaruti Police Station</option>
+                                <option value="Market Police Station">Market Police Station</option>
+                                <option value="Shahapur Police Station">Shahapur Police Station</option>
+                                <option value="Kadebazar Police Station">Kadebazar Police Station</option>
+                                <option value="Camp Police Station">Camp Police Station</option>
+                                <option value="Tilakawadi Police Station">Tilakawadi Police Station</option>
+                                <option value="Udyambag Police Station">Udyambag Police Station</option>
+                                <option value="Rural Police Station">Rural Police Station</option>
+                                <option value="Kakati Police Station">Kakati Police Station</option>
+                                <option value="Marihal Police Station">Marihal Police Station</option>
+                                <option value="Bagewadi Police Station">Bagewadi Police Station</option>
+                                <option value="Traffic North Police Station">Traffic North Police Station</option>
+                                <option value="Traffic South Police Station">Traffic South Police Station</option>
+                            </select>
+                        </div>
+                        <div class="filter-item">
+                            <label for="filterSector">Sector</label>
+                            <select id="filterSector" class="form-control">
+                                <option value="">All</option>
+                                <option value="1">1</option>
+                                <option value="2">2</option>
+                                <option value="3">3</option>
+                                <option value="Others">Others</option>
+                            </select>
+                        </div>
+                        <div class="filter-item">
+                            <label for="filterShift">Shift</label>
+                            <select id="filterShift" class="form-control">
+                                <option value="">All</option>
+                                <option value="1">1</option>
+                                <option value="2">2</option>
+                                <option value="3">3</option>
+                                <option value="Others">Others</option>
+                            </select>
+                        </div>
+                        <div class="filter-item">
+                            <label for="filterRank">Rank</label>
+                            <select id="filterRank" class="form-control">
+                                <option value="">All</option>
+                                <option value="HG">HG</option>
+                                <option value="PC">PC</option>
+                                <option value="HC">HC</option>
+                                <option value="ASI">ASI</option>
+                                <option value="PSI">PSI</option>
+                                <option value="PI/CPI">PI/CPI</option>
+                                <option value="ACP/DSP">ACP/DSP</option>
+                                <option value="SP/DCP">SP/DCP</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button id="applyFilters" class="btn btn-primary">Apply Filters</button>
+                    <button id="exportData" class="btn btn-secondary">Export Data</button>
+                    <button id="refreshData" class="btn btn-secondary"><i class="fas fa-sync-alt"></i> Refresh</button>
+                </div>
+                
+                <div class="card">
+                    <h3 class="card-title">Attendance Records</h3>
+                    <div class="search-box">
+                        <input type="text" id="searchInput" class="form-control" placeholder="Search by ID, Name, or Police Station...">
+                    </div>
+                    <div class="map-container" id="adminMap" style="height: 300px; margin-bottom: 20px;"></div>
+                    <div class="attendance-list" style="overflow-x: auto;">
+                        <table id="attendanceTable">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Rank</th>
+                                    <th>Name</th>
+                                    <th>Police Station</th>
+                                    <th>Sector</th>
+                                    <th>Shift</th>
+                                    <th>Date & Time</th>
+                                    <th>Location</th>
+                                    <th>Photo</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Data will be populated by JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="tab-content" id="addRecord">
+                <div class="card">
+                    <h3 class="card-title">Add New Record</h3>
+                    <div class="search-box">
+                        <input type="text" id="recordSearch" class="form-control" placeholder="Search existing records...">
+                    </div>
+                    <form id="addRecordForm">
+                        <div class="form-group">
+                            <label for="newId">ID</label>
+                            <input type="text" id="newId" class="form-control" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="newRank">Rank</label>
+                            <select id="newRank" class="form-control" required>
+                                <option value="">Select Rank</option>
+                                <option value="HG">HG</option>
+                                <option value="PC">PC</option>
+                                <option value="HC">HC</option>
+                                <option value="ASI">ASI</option>
+                                <option value="PSI">PSI</option>
+                                <option value="PI/CPI">PI/CPI</option>
+                                <option value="ACP/DSP">ACP/DSP</option>
+                                <option value="SP/DCP">SP/DCP</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="newName">Name</label>
+                            <input type="text" id="newName" class="form-control" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="newPoliceStation">Police Station</label>
+                            <select id="newPoliceStation" class="form-control" required>
+                                <option value="">Select Police Station</option>
+                                <option value="APMC Police Station">APMC Police Station</option>
+                                <option value="Malamaruti Police Station">Malamaruti Police Station</option>
+                                <option value="Market Police Station">Market Police Station</option>
+                                <option value="Shahapur Police Station">Shahapur Police Station</option>
+                                <option value="Kadebazar Police Station">Kadebazar Police Station</option>
+                                <option value="Camp Police Station">Camp Police Station</option>
+                                <option value="Tilakawadi Police Station">Tilakawadi Police Station</option>
+                                <option value="Udyambag Police Station">Udyambag Police Station</option>
+                                <option value="Rural Police Station">Rural Police Station</option>
+                                <option value="Kakati Police Station">Kakati Police Station</option>
+                                <option value="Marihal Police Station">Marihal Police Station</option>
+                                <option value="Bagewadi Police Station">Bagewadi Police Station</option>
+                                <option value="Traffic North Police Station">Traffic North Police Station</option>
+                                <option value="Traffic South Police Station">Traffic South Police Station</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="newSector">Sector</label>
+                            <select id="newSector" class="form-control" required>
+                                <option value="">Select Sector</option>
+                                <option value="1">1</option>
+                                <option value="2">2</option>
+                                <option value="3">3</option>
+                                <option value="Others">Others</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="newShift">Shift</label>
+                            <select id="newShift" class="form-control" required>
+                                <option value="">Select Shift</option>
+                                <option value="1">1</option>
+                                <option value="2">2</option>
+                                <option value="3">3</option>
+                                <option value="Others">Others</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="newLat">Latitude</label>
+                            <input type="text" id="newLat" class="form-control" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="newLng">Longitude</label>
+                            <input type="text" id="newLng" class="form-control" required>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary">Add Record</button>
+                    </form>
+                </div>
+            </div>
+            
+            <div class="tab-content" id="tracker">
+                <div class="card">
+                    <h3 class="card-title">Attendance Tracker</h3>
+                    <div class="filters">
+                        <div class="filter-item">
+                            <label for="trackerDate">Date</label>
+                            <input type="date" id="trackerDate" class="form-control">
+                        </div>
+                        <div class="filter-item">
+                            <label for="trackerId">ID</label>
+                            <input type="text" id="trackerId" class="form-control" placeholder="Enter ID">
+                        </div>
+                        <div class="filter-item">
+                            <label for="trackerPoliceStation">Police Station</label>
+                            <select id="trackerPoliceStation" class="form-control">
+                                <option value="">All</option>
+                                <option value="APMC Police Station">APMC Police Station</option>
+                                <option value="Malamaruti Police Station">Malamaruti Police Station</option>
+                                <option value="Market Police Station">Market Police Station</option>
+                                <option value="Shahapur Police Station">Shahapur Police Station</option>
+                                <option value="Kadebazar Police Station">Kadebazar Police Station</option>
+                                <option value="Camp Police Station">Camp Police Station</option>
+                                <option value="Tilakawadi Police Station">Tilakawadi Police Station</option>
+                                <option value="Udyambag Police Station">Udyambag Police Station</option>
+                                <option value="Rural Police Station">Rural Police Station</option>
+                                <option value="Kakati Police Station">Kakati Police Station</option>
+                                <option value="Marihal Police Station">Marihal Police Station</option>
+                                <option value="Bagewadi Police Station">Bagewadi Police Station</option>
+                                <option value="Traffic North Police Station">Traffic North Police Station</option>
+                                <option value="Traffic South Police Station">Traffic South Police Station</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button id="applyTrackerFilters" class="btn btn-primary">Apply Filters</button>
+                    
+                    <div class="path-tracker" id="trackerMap"></div>
+                    
+                    <div class="card">
+                        <h3 class="card-title">Attendance Path Details</h3>
+                        <div id="pathDetails">
+                            <!-- Path details will be populated here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="tab-content" id="analytics">
+                <div class="card">
+                    <h3 class="card-title">Attendance Analytics</h3>
+                    <div class="analytics-container">
+                        <div class="analytics-card">
+                            <h3>Total Records</h3>
+                            <div class="value" id="totalRecords">0</div>
+                        </div>
+                        <div class="analytics-card">
+                            <h3>Today's Records</h3>
+                            <div class="value" id="todayRecords">0</div>
+                        </div>
+                        <div class="analytics-card">
+                            <h3>Most Common Shift</h3>
+                            <div class="value" id="commonShift">-</div>
+                        </div>
+                        <div class="analytics-card">
+                            <h3>Most Active Station</h3>
+                            <div class="value" id="activeStation">-</div>
+                        </div>
+                    </div>
+                    
+                    <div class="map-container" id="analyticsMap" style="height: 400px;"></div>
+                </div>
+            </div>
+            
+            <div class="tab-content" id="settings">
+                <div class="card">
+                    <h3 class="card-title">System Settings</h3>
+                    <div class="form-group">
+                        <label for="logoUpload">Upload Logo</label>
+                        <input type="file" id="logoUpload" class="form-control" accept="image/*">
+                    </div>
+                    <button id="saveLogo" class="btn btn-primary">Save Logo</button>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- Success Dialog -->
+    <div class="success-dialog" id="successDialog">
+        <div class="dialog-content">
+            <i class="fas fa-check-circle"></i>
+            <h2>Attendance Submitted Successfully!</h2>
+            <p>Your attendance has been recorded.</p>
+            <button class="btn btn-primary" id="closeDialog">OK</button>
+        </div>
+    </div>
+
+    <!-- Notification -->
+    <div class="notification" id="notification"></div>
+
+    <script>
+        // Global variables
+        let userMap, adminMap, analyticsMap, trackerMap;
+        let currentLocation = null;
+        let capturedPhoto = null;
+        let attendanceData = [];
+        let recentSubmissions = {};
+
+        // Google Sheets configuration
+        const scriptURL = 'https://script.google.com/macros/s/AKfycbw7y9fL6W1Qr3fB9J3p4q3q4q4q4q4q4q4q4q4q4q4q4q4q4q4q4q4q4q4q4/exec';
+        
+        // DOM Elements
+        const userSection = document.getElementById('userSection');
+        const loginSection = document.getElementById('loginSection');
+        const adminSection = document.getElementById('adminSection');
+        const userPageBtn = document.getElementById('userPageBtn');
+        const adminPageBtn = document.getElementById('adminPageBtn');
+        const logoutBtn = document.getElementById('logoutBtn');
+        const loginForm = document.getElementById('loginForm');
+        const attendanceForm = document.getElementById('attendanceForm');
+        const successDialog = document.getElementById('successDialog');
+        const closeDialog = document.getElementById('closeDialog');
+        const videoElement = document.getElementById('videoElement');
+        const captureBtn = document.getElementById('captureBtn');
+        const canvas = document.getElementById('canvas');
+        const capturedPhotoElement = document.getElementById('capturedPhoto');
+        const getLocationBtn = document.getElementById('getLocationBtn');
+        const locationData = document.getElementById('locationData');
+        const applyFilters = document.getElementById('applyFilters');
+        const exportData = document.getElementById('exportData');
+        const refreshData = document.getElementById('refreshData');
+        const attendanceTable = document.getElementById('attendanceTable').querySelector('tbody');
+        const addRecordForm = document.getElementById('addRecordForm');
+        const tabButtons = document.querySelectorAll('.tab-button');
+        const tabContents = document.querySelectorAll('.tab-content');
+        const totalRecords = document.getElementById('totalRecords');
+        const todayRecords = document.getElementById('todayRecords');
+        const commonShift = document.getElementById('commonShift');
+        const activeStation = document.getElementById('activeStation');
+        const logoUpload = document.getElementById('logoUpload');
+        const saveLogo = document.getElementById('saveLogo');
+        const logoImage = document.getElementById('logoImage');
+        const searchInput = document.getElementById('searchInput');
+        const recordSearch = document.getElementById('recordSearch');
+        const applyTrackerFilters = document.getElementById('applyTrackerFilters');
+        const pathDetails = document.getElementById('pathDetails');
+        const notification = document.getElementById('notification');
+
+        // Initialize the application
+        function init() {
+            setupEventListeners();
+            loadAttendanceData();
+            updateAnalytics();
+            loadLogo();
+        }
+
+        // Set up event listeners
+        function setupEventListeners() {
+            userPageBtn.addEventListener('click', () => showSection('user'));
+            adminPageBtn.addEventListener('click', () => showSection('login'));
+            logoutBtn.addEventListener('click', logout);
+            loginForm.addEventListener('submit', handleLogin);
+            attendanceForm.addEventListener('submit', handleAttendanceSubmit);
+            closeDialog.addEventListener('click', () => successDialog.style.display = 'none');
+            captureBtn.addEventListener('click', capturePhoto);
+            getLocationBtn.addEventListener('click', getLocation);
+            applyFilters.addEventListener('click', applyDataFilters);
+            exportData.addEventListener('click', exportToCSV);
+            refreshData.addEventListener('click', loadAttendanceData);
+            addRecordForm.addEventListener('submit', handleAddRecord);
+            
+            tabButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    const tabId = button.getAttribute('data-tab');
+                    switchTab(tabId);
+                });
+            });
+            
+            saveLogo.addEventListener('click', saveLogoImage);
+            
+            // Search functionality
+            searchInput.addEventListener('input', searchRecords);
+            recordSearch.addEventListener('input', searchExistingRecords);
+            
+            // Tracker filters
+            applyTrackerFilters.addEventListener('click', applyTrackerFiltersHandler);
+            
+            // Initialize camera
+            initCamera();
+        }
+
+        // Show appropriate section
+        function showSection(section) {
+            userSection.classList.remove('active-section');
+            loginSection.classList.remove('active-section');
+            adminSection.classList.remove('active-section');
+            
+            if (section === 'user') {
+                userSection.classList.add('active-section');
+                adminPageBtn.style.display = 'inline-block';
+                logoutBtn.style.display = 'none';
+            } else if (section === 'login') {
+                loginSection.classList.add('active-section');
+                adminPageBtn.style.display = 'none';
+                logoutBtn.style.display = 'none';
+            } else if (section === 'admin') {
+                adminSection.classList.add('active-section');
+                adminPageBtn.style.display = 'none';
+                logoutBtn.style.display = 'inline-block';
+                initAdminMap();
+                initAnalyticsMap();
+                initTrackerMap();
+            }
+        }
+
+        // Handle login
+        function handleLogin(e) {
+            e.preventDefault();
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            
+            if (username === 'Belagavi' && password === 'A@abc7676') {
+                showSection('admin');
+            } else {
+                alert('Invalid credentials. Please try again.');
+            }
+        }
+
+        // Logout
+        function logout() {
+            showSection('user');
+        }
+
+        // Initialize camera
+        function initCamera() {
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                navigator.mediaDevices.getUserMedia({ video: true })
+                    .then(function(stream) {
+                        videoElement.srcObject = stream;
+                    })
+                    .catch(function(error) {
+                        console.error("Camera error: ", error);
+                    });
+            }
+        }
+
+        // Capture photo
+        function capturePhoto() {
+            const context = canvas.getContext('2d');
+            canvas.width = videoElement.videoWidth;
+            canvas.height = videoElement.videoHeight;
+            context.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+            
+            capturedPhoto = canvas.toDataURL('image/png');
+            capturedPhotoElement.src = capturedPhoto;
+            capturedPhotoElement.style.display = 'block';
+            
+            // Play beep sound
+            playBeepSound();
+        }
+
+        // Get location
+        function getLocation() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    function(position) {
+                        currentLocation = {
+                            lat: position.coords.latitude,
+                            lng: position.coords.longitude
+                        };
+                        
+                        locationData.textContent = `Latitude: ${currentLocation.lat.toFixed(6)}, Longitude: ${currentLocation.lng.toFixed(6)}`;
+                        locationData.style.display = 'block';
+                        
+                        // Play beep sound
+                        playBeepSound();
+                    },
+                    function(error) {
+                        console.error("Geolocation error: ", error);
+                        alert('Unable to retrieve location. Please ensure location services are enabled.');
+                    }
+                );
+            } else {
+                alert('Geolocation is not supported by this browser.');
+            }
+        }
+
+        // Play beep sound
+        function playBeepSound() {
+            try {
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioContext.createOscillator();
+                oscillator.type = 'sine';
+                oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
+                oscillator.connect(audioContext.destination);
+                oscillator.start();
+                oscillator.stop(audioContext.currentTime + 0.1);
+            } catch (e) {
+                console.error("Audio error: ", e);
+            }
+        }
+
+        // Show notification
+        function showNotification(message, type) {
+            notification.textContent = message;
+            notification.className = `notification ${type}`;
+            notification.style.display = 'block';
+            
+            setTimeout(() => {
+                notification.style.display = 'none';
+            }, 3000);
+        }
+
+        // Load attendance data from Google Sheets
+        function loadAttendanceData() {
+            showNotification('Loading attendance data...', 'success');
+            
+            fetch(scriptURL + '?action=getData')
+                .then(response => response.json())
+                .then(data => {
+                    attendanceData = data;
+                    loadAttendanceTable();
+                    updateAnalytics();
+                    showNotification('Data loaded successfully', 'success');
+                })
+                .catch(error => {
+                    console.error('Error loading data:', error);
+                    showNotification('Error loading data', 'error');
+                });
+        }
+
+        // Save attendance data to Google Sheets
+        function saveAttendanceData(record) {
+            const formData = new FormData();
+            formData.append('action', 'addRecord');
+            formData.append('id', record.id);
+            formData.append('rank', record.rank);
+            formData.append('name', record.name);
+            formData.append('policeStation', record.policeStation);
+            formData.append('sector', record.sector);
+            formData.append('shift', record.shift);
+            formData.append('timestamp', record.timestamp);
+            formData.append('lat', record.location.lat);
+            formData.append('lng', record.location.lng);
+            formData.append('photo', record.photo);
+            
+            fetch(scriptURL, {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showNotification('Attendance saved successfully', 'success');
+                    loadAttendanceData(); // Refresh data
+                } else {
+                    showNotification('Error saving attendance', 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error saving data:', error);
+                showNotification('Error saving attendance', 'error');
+            });
+        }
+
+        // Handle attendance submission
+        function handleAttendanceSubmit(e) {
+            e.preventDefault();
+            
+            const id = document.getElementById('id').value;
+            const rank = document.getElementById('rank').value;
+            const name = document.getElementById('name').value;
+            const policeStation = document.getElementById('policeStation').value;
+            const sector = document.getElementById('sector').value;
+            const shift = document.getElementById('shift').value;
+            
+            // Check if user has submitted in the last hour
+            const now = new Date().getTime();
+            if (recentSubmissions[id] && (now - recentSubmissions[id]) < 3600000) {
+                alert('You have already submitted attendance in the last hour. Please try again later.');
+                return;
+            }
+            
+            if (!currentLocation) {
+                alert('Please capture your location before submitting.');
+                return;
+            }
+            
+            if (!capturedPhoto) {
+                alert('Please capture your photo before submitting.');
+                return;
+            }
+            
+            // Create attendance record
+            const record = {
+                id,
+                rank,
+                name,
+                policeStation,
+                sector,
+                shift,
+                timestamp: new Date().toISOString(),
+                location: currentLocation,
+                photo: capturedPhoto
+            };
+            
+            // Save record to Google Sheets
+            saveAttendanceData(record);
+            
+            // Update recent submissions
+            recentSubmissions[id] = now;
+            localStorage.setItem('recentSubmissions', JSON.stringify(recentSubmissions));
+            
+            // Show success dialog
+            successDialog.style.display = 'flex';
+            
+            // Reset form
+            attendanceForm.reset();
+            currentLocation = null;
+            capturedPhoto = null;
+            capturedPhotoElement.style.display = 'none';
+            locationData.style.display = 'none';
+            
+            // Stop camera stream
+            const stream = videoElement.srcObject;
+            if (stream) {
+                const tracks = stream.getTracks();
+                tracks.forEach(track => track.stop());
+            }
+            
+            // Reinitialize camera
+            setTimeout(initCamera, 1000);
+        }
+
+        // Load attendance table
+        function loadAttendanceTable() {
+            attendanceTable.innerHTML = '';
+            
+            if (attendanceData.length === 0) {
+                const row = document.createElement('tr');
+                row.innerHTML = `<td colspan="9" style="text-align: center;">No attendance records found</td>`;
+                attendanceTable.appendChild(row);
+                return;
+            }
+            
+            attendanceData.forEach(record => {
+                const row = document.createElement('tr');
+                
+                row.innerHTML = `
+                    <td>${record.id}</td>
+                    <td>${record.rank}</td>
+                    <td>${record.name}</td>
+                    <td>${record.policeStation}</td>
+                    <td>${record.sector}</td>
+                    <td>${record.shift}</td>
+                    <td>${new Date(record.timestamp).toLocaleString()}</td>
+                    <td>${record.lat ? `Lat: ${record.lat}, Lng: ${record.lng}` : 'N/A'}</td>
+                    <td>${record.photo ? '<i class="fas fa-check"></i>' : '<i class="fas fa-times"></i>'}</td>
+                `;
+                
+                attendanceTable.appendChild(row);
+            });
+        }
+
+        // Search records
+        function searchRecords() {
+            const searchTerm = searchInput.value.toLowerCase();
+            const rows = attendanceTable.querySelectorAll('tr');
+            
+            rows.forEach(row => {
+                const cells = row.querySelectorAll('td');
+                let found = false;
+                
+                cells.forEach(cell => {
+                    if (cell.textContent.toLowerCase().includes(searchTerm)) {
+                        found = true;
+                    }
+                });
+                
+                row.style.display = found ? '' : 'none';
+            });
+        }
+
+        // Search existing records
+        function searchExistingRecords() {
+            const searchTerm = recordSearch.value.toLowerCase();
+            
+            if (searchTerm.length < 2) return;
+            
+            const foundRecord = attendanceData.find(record => 
+                record.id.toLowerCase().includes(searchTerm) || 
+                record.name.toLowerCase().includes(searchTerm)
+            );
+            
+            if (foundRecord) {
+                document.getElementById('newId').value = foundRecord.id;
+                document.getElementById('newRank').value = foundRecord.rank;
+                document.getElementById('newName').value = foundRecord.name;
+                document.getElementById('newPoliceStation').value = foundRecord.policeStation;
+                document.getElementById('newSector').value = foundRecord.sector;
+                document.getElementById('newShift').value = foundRecord.shift;
+            }
+        }
+
+        // Apply data filters
+        function applyDataFilters() {
+            const filterDate = document.getElementById('filterDate').value;
+            const filterPoliceStation = document.getElementById('filterPoliceStation').value;
+            const filterSector = document.getElementById('filterSector').value;
+            const filterShift = document.getElementById('filterShift').value;
+            const filterRank = document.getElementById('filterRank').value;
+            
+            let filteredData = attendanceData;
+            
+            if (filterDate) {
+                filteredData = filteredData.filter(record => {
+                    const recordDate = new Date(record.timestamp).toDateString();
+                    const filterDateObj = new Date(filterDate).toDateString();
+                    return recordDate === filterDateObj;
+                });
+            }
+            
+            if (filterPoliceStation) {
+                filteredData = filteredData.filter(record => record.policeStation === filterPoliceStation);
+            }
+            
+            if (filterSector) {
+                filteredData = filteredData.filter(record => record.sector === filterSector);
+            }
+            
+            if (filterShift) {
+                filteredData = filteredData.filter(record => record.shift === filterShift);
+            }
+            
+            if (filterRank) {
+                filteredData = filteredData.filter(record => record.rank === filterRank);
+            }
+            
+            // Update table with filtered data
+            attendanceTable.innerHTML = '';
+            
+            filteredData.forEach(record => {
+                const row = document.createElement('tr');
+                
+                row.innerHTML = `
+                    <td>${record.id}</td>
+                    <td>${record.rank}</td>
+                    <td>${record.name}</td>
+                    <td>${record.policeStation}</td>
+                    <td>${record.sector}</td>
+                    <td>${record.shift}</td>
+                    <td>${new Date(record.timestamp).toLocaleString()}</td>
+                    <td>${record.lat ? `Lat: ${record.lat}, Lng: ${record.lng}` : 'N/A'}</td>
+                    <td>${record.photo ? '<i class="fas fa-check"></i>' : '<i class="fas fa-times"></i>'}</td>
+                `;
+                
+                attendanceTable.appendChild(row);
+            });
+            
+            // Update map with filtered data
+            plotFilteredData(filteredData);
+        }
+
+        // Initialize admin map
+        function initAdminMap() {
+            if (adminMap) {
+                adminMap.remove();
+            }
+            
+            adminMap = L.map('adminMap').setView([15.8497, 74.4977], 13);
+            
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            }).addTo(adminMap);
+            
+            // Plot attendance data on map
+            plotAttendanceData();
+        }
+
+        // Plot attendance data on admin map
+        function plotAttendanceData() {
+            attendanceData.forEach(record => {
+                if (record.lat && record.lng) {
+                    L.marker([record.lat, record.lng])
+                        .addTo(adminMap)
+                        .bindPopup(`
+                            <b>${record.name}</b><br>
+                            ${record.rank}<br>
+                            ${record.policeStation}<br>
+                            ${new Date(record.timestamp).toLocaleString()}
+                        `);
+                }
+            });
+        }
+
+        // Plot filtered data on admin map
+        function plotFilteredData(filteredData) {
+            // Clear existing markers
+            adminMap.eachLayer(layer => {
+                if (layer instanceof L.Marker) {
+                    adminMap.removeLayer(layer);
+                }
+            });
+            
+            // Add filtered markers
+            filteredData.forEach(record => {
+                if (record.lat && record.lng) {
+                    L.marker([record.lat, record.lng])
+                        .addTo(adminMap)
+                        .bindPopup(`
+                            <b>${record.name}</b><br>
+                            ${record.rank}<br>
+                            ${record.policeStation}<br>
+                            ${new Date(record.timestamp).toLocaleString()}
+                        `);
+                }
+            });
+            
+            // Adjust map view if there are markers
+            if (filteredData.length > 0 && filteredData[0].lat) {
+                const locations = filteredData.filter(r => r.lat).map(r => [r.lat, r.lng]);
+                const bounds = L.latLngBounds(locations);
+                adminMap.fitBounds(bounds);
+            }
+        }
+
+        // Initialize analytics map
+        function initAnalyticsMap() {
+            if (analyticsMap) {
+                analyticsMap.remove();
+            }
+            
+            analyticsMap = L.map('analyticsMap').setView([15.8497, 74.4977], 13);
+            
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            }).addTo(analyticsMap);
+            
+            // Plot heatmap or cluster of attendance data
+            plotAnalyticsData();
+        }
+
+        // Plot analytics data
+        function plotAnalyticsData() {
+            // Simple implementation - just plot all points
+            attendanceData.forEach(record => {
+                if (record.lat && record.lng) {
+                    L.circleMarker([record.lat, record.lng], {
+                        radius: 5,
+                        color: 'red',
+                        fillColor: '#f03',
+                        fillOpacity: 0.5
+                    }).addTo(analyticsMap);
+                }
+            });
+        }
+
+        // Initialize tracker map
+        function initTrackerMap() {
+            if (trackerMap) {
+                trackerMap.remove();
+            }
+            
+            trackerMap = L.map('trackerMap').setView([15.8497, 74.4977], 13);
+            
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            }).addTo(trackerMap);
+        }
+
+        // Apply tracker filters
+        function applyTrackerFiltersHandler() {
+            const trackerDate = document.getElementById('trackerDate').value;
+            const trackerId = document.getElementById('trackerId').value;
+            const trackerPoliceStation = document.getElementById('trackerPoliceStation').value;
+            
+            let filteredData = attendanceData;
+            
+            if (trackerDate) {
+                filteredData = filteredData.filter(record => {
+                    const recordDate = new Date(record.timestamp).toDateString();
+                    const filterDateObj = new Date(trackerDate).toDateString();
+                    return recordDate === filterDateObj;
+                });
+            }
+            
+            if (trackerId) {
+                filteredData = filteredData.filter(record => record.id === trackerId);
+            }
+            
+            if (trackerPoliceStation) {
+                filteredData = filteredData.filter(record => record.policeStation === trackerPoliceStation);
+            }
+            
+            // Plot on tracker map
+            plotTrackerData(filteredData);
+        }
+
+        // Plot tracker data
+        function plotTrackerData(filteredData) {
+            // Clear existing markers and paths
+            trackerMap.eachLayer(layer => {
+                if (layer instanceof L.Marker || layer instanceof L.Polyline) {
+                    trackerMap.removeLayer(layer);
+                }
+            });
+            
+            // Group by ID for paths
+            const pathsByPerson = {};
+            filteredData.forEach(record => {
+                if (!pathsByPerson[record.id]) {
+                    pathsByPerson[record.id] = [];
+                }
+                
+                if (record.lat && record.lng) {
+                    pathsByPerson[record.id].push([record.lat, record.lng]);
+                    
+                    // Add marker
+                    L.marker([record.lat, record.lng])
+                        .addTo(trackerMap)
+                        .bindPopup(`
+                            <b>${record.name}</b><br>
+                            ${record.rank}<br>
+                            ${record.policeStation}<br>
+                            ${new Date(record.timestamp).toLocaleString()}
+                        `);
+                }
+            });
+            
+            // Draw paths
+            let pathHtml = '<h3>Attendance Paths</h3>';
+            for (const id in pathsByPerson) {
+                if (pathsByPerson[id].length > 1) {
+                    // Draw polyline
+                    L.polyline(pathsByPerson[id], {color: 'red'}).addTo(trackerMap);
+                    
+                    // Add to path details
+                    const person = filteredData.find(r => r.id === id);
+                    pathHtml += `
+                        <div class="path-detail">
+                            <h4>${person.name} (${person.id})</h4>
+                            <p>Path points: ${pathsByPerson[id].length}</p>
+                        </div>
+                    `;
+                }
+            }
+            
+            // Update path details
+            pathDetails.innerHTML = pathHtml;
+            
+            // Adjust map view if there are markers
+            if (filteredData.length > 0 && filteredData[0].lat) {
+                const locations = filteredData.filter(r => r.lat).map(r => [r.lat, r.lng]);
+                const bounds = L.latLngBounds(locations);
+                trackerMap.fitBounds(bounds);
+            }
+        }
+
+        // Export data to CSV
+        function exportToCSV() {
+            let csvContent = "data:text/csv;charset=utf-8,";
+            
+            // Add header row
+            csvContent += "ID,Rank,Name,Police Station,Sector,Shift,Date Time,Latitude,Longitude\n";
+            
+            // Add data rows
+            attendanceData.forEach(record => {
+                const row = [
+                    record.id,
+                    record.rank,
+                    record.name,
+                    record.policeStation,
+                    record.sector,
+                    record.shift,
+                    new Date(record.timestamp).toLocaleString(),
+                    record.lat ? record.lat : '',
+                    record.lng ? record.lng : ''
+                ].map(field => `"${field}"`).join(',');
+                
+                csvContent += row + "\n";
+            });
+            
+            // Create download link
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", "attendance_data.csv");
+            document.body.appendChild(link);
+            
+            // Trigger download
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // Handle add record form
+        function handleAddRecord(e) {
+            e.preventDefault();
+            
+            const id = document.getElementById('newId').value;
+            const rank = document.getElementById('newRank').value;
+            const name = document.getElementById('newName').value;
+            const policeStation = document.getElementById('newPoliceStation').value;
+            const sector = document.getElementById('newSector').value;
+            const shift = document.getElementById('newShift').value;
+            const lat = parseFloat(document.getElementById('newLat').value);
+            const lng = parseFloat(document.getElementById('newLng').value);
+            
+            // Create record
+            const record = {
+                id,
+                rank,
+                name,
+                policeStation,
+                sector,
+                shift,
+                timestamp: new Date().toISOString(),
+                location: { lat, lng },
+                photo: null
+            };
+            
+            // Save record to Google Sheets
+            saveAttendanceData(record);
+            
+            // Reset form
+            addRecordForm.reset();
+        }
+
+        // Update analytics
+        function updateAnalytics() {
+            // Total records
+            totalRecords.textContent = attendanceData.length;
+            
+            // Today's records
+            const today = new Date().toDateString();
+            const todayCount = attendanceData.filter(record => {
+                return new Date(record.timestamp).toDateString() === today;
+            }).length;
+            todayRecords.textContent = todayCount;
+            
+            // Most common shift
+            const shiftCounts = {};
+            attendanceData.forEach(record => {
+                shiftCounts[record.shift] = (shiftCounts[record.shift] || 0) + 1;
+            });
+            
+            let mostCommonShift = '';
+            let maxCount = 0;
+            for (const shift in shiftCounts) {
+                if (shiftCounts[shift] > maxCount) {
+                    mostCommonShift = shift;
+                    maxCount = shiftCounts[shift];
+                }
+            }
+            commonShift.textContent = mostCommonShift;
+            
+            // Most active station
+            const stationCounts = {};
+            attendanceData.forEach(record => {
+                stationCounts[record.policeStation] = (stationCounts[record.policeStation] || 0) + 1;
+            });
+            
+            let mostActiveStation = '';
+            maxCount = 0;
+            for (const station in stationCounts) {
+                if (stationCounts[station] > maxCount) {
+                    mostActiveStation = station;
+                    maxCount = stationCounts[station];
+                }
+            }
+            activeStation.textContent = mostActiveStation;
+        }
+
+        // Switch tabs
+        function switchTab(tabId) {
+            // Update tab buttons
+            tabButtons.forEach(button => {
+                if (button.getAttribute('data-tab') === tabId) {
+                    button.classList.add('active');
+                } else {
+                    button.classList.remove('active');
+                }
+            });
+            
+            // Update tab contents
+            tabContents.forEach(content => {
+                if (content.id === tabId) {
+                    content.classList.add('active');
+                } else {
+                    content.classList.remove('active');
+                }
+            });
+            
+            // Initialize maps if needed
+            if (tabId === 'attendanceData' && !adminMap) {
+                initAdminMap();
+            } else if (tabId === 'analytics' && !analyticsMap) {
+                initAnalyticsMap();
+            } else if (tabId === 'tracker' && !trackerMap) {
+                initTrackerMap();
+            }
+        }
+
+        // Save logo image
+        function saveLogoImage() {
+            const file = logoUpload.files[0];
+            if (!file) {
+                alert('Please select a logo image first.');
+                return;
+            }
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                localStorage.setItem('logoImage', e.target.result);
+                loadLogo();
+                alert('Logo saved successfully!');
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // Load logo
+        function loadLogo() {
+            const savedLogo = localStorage.getItem('logoImage');
+            if (savedLogo) {
+                logoImage.src = savedLogo;
+            }
+        }
+
+        // Initialize the application when the DOM is loaded
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>
